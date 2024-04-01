@@ -1,8 +1,9 @@
 from discord.ext import commands
 import yt_dlp as youtube_dl
-import asyncio
 import discord
-import os, dotenv
+import asyncio
+import dotenv
+import os
 
 global queue, i, play_flag
 
