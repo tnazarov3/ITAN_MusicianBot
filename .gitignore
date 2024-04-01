@@ -1,0 +1,5 @@
+/.env
+/.venv/pyvenv.cfg
+/.venv/share
+/.venv/etc
+/.venv/Scripts
