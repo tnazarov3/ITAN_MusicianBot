@@ -121,11 +121,14 @@ async def download(url, ctx):
 
 @bot.command(name='дауби', help='Остановать/Продолжить')
 async def pause_resume(ctx):
+    global play_flag
     voice_client = ctx.message.guild.voice_client
-    if voice_client.is_paused():
-        voice_client.resume()
-    elif voice_client.is_playing():
+    if voice_client.is_playing():
+        play_flag = False
         voice_client.pause()
+    elif voice_client.is_paused():
+        play_flag = True
+        voice_client.resume()
     else:
         await ctx.send("`а я и не пою`")
 
