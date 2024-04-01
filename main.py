@@ -40,14 +40,14 @@ async def play_song(ctx, url):
     else:
         channel = ctx.message.author.voice.channel
     try: await channel.connect()
-    except: pass
+    except Exception as err: print(err)
 
     try:
         queue = queue
     except NameError:
         queue = []
         i = 0
-
+    print(queue)
     try:
         server = ctx.message.guild
         voice_channel = server.voice_client
@@ -57,7 +57,8 @@ async def play_song(ctx, url):
         play_flag = True
         try:
             await start_playing(voice_channel, ctx)
-        except Exception as err: print('>>play err', err)
+        except Exception as err:
+            print('>>play err', err)
 
     except Exception as err:
         print('>>download err', err)
@@ -73,9 +74,7 @@ async def start_playing(voice_channel, ctx):
                 voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=f'D:/ITAN/{queue[i]}'))
                 await ctx.send(f'**Пою: **`{queue[i]}`'.replace('.webm', '').replace('_', ' '))
                 i += 1
-                try:
-                    os.remove(queue[i-1]) if i > 0 else 0
-                    print('===== previous deleted =====')
+                try: os.remove(queue[i-1]) if i > 0 else 0
                 except: pass
             except: pass
             await asyncio.sleep(3)
@@ -85,35 +84,39 @@ async def start_playing(voice_channel, ctx):
 
 async def download(url, ctx):
     global queue
-    print('===== download started =====')
+    global dwnld_msg, added
+    added = None
     if '/playlist' in url:
-        playlist = []
+        added = []
         ydl.download([url])
         files = os.listdir('D:/ITAN/')
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
-                playlist.append(files[n])
+                added.append(files[n])
             else:
                 pass
-        msg = f'**Плейлист добавлен**\n```{playlist}```'
-        msg = msg.replace('[', '-').replace(']', '')
-        msg = msg.replace("'", '').replace('_', ' ')
-        msg = msg.replace('.webm', '').replace(', ', '\n-')
-        await ctx.send(msg)
+        dwnld_msg = f'**Плейлист добавлен**\n```{added}```'
+        dwnld_msg = dwnld_msg.replace('[', '-').replace(']', '')
+        dwnld_msg = dwnld_msg.replace("'", '').replace('_', ' ')
+        dwnld_msg = dwnld_msg.replace('.webm', '').replace(', ', '\n-')
+
     else:
-        track = []
         ydl.download([url])
         files = os.listdir('D:/ITAN/')
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
-                track.append(files[n])
+                added = files[n]
+                dwnld_msg = f'**Добавлен: **`{added}`'
+                dwnld_msg = dwnld_msg.replace('.webm', '').replace('_', ' ')
             else:
                 pass
-        msg = f'**Добавлен: **`{track[0]}`'
-        msg = msg.replace('.webm', '').replace('_', ' ')
-        await ctx.send(msg)
+
+        if added is None:
+            dwnld_msg = '**Трек уже в очереди**'
+
+    await ctx.send(dwnld_msg)
 
 
 @bot.command(name='дауби', help='Остановать/Продолжить')
@@ -158,14 +161,14 @@ async def clear_queue(ctx):
 async def print_queue(ctx):
     global queue, i
     if len(queue[i:]) > 0:
-        msg = f'**Дальше по списку: **```{queue[i:]}```'
-        msg = msg.replace('.webm', f'').replace(', ', '\n-')
-        msg = msg.replace('[', '-').replace(']', '')
-        msg = msg.replace("'", '').replace('_', ' ')
-        await ctx.send(msg)
+        queue_msg = f'**Дальше по списку: **```{queue[i:]}```'
+        queue_msg = queue_msg.replace('.webm', f'').replace(', ', '\n-')
+        queue_msg = queue_msg.replace('[', '-').replace(']', '')
+        queue_msg = queue_msg.replace("'", '').replace('_', ' ')
+        await ctx.send(queue_msg)
     else:
-        msg = '**В очереди нет треков**'
-        await ctx.send(msg)
+        queue_msg = '**В очереди нет треков**'
+        await ctx.send(queue_msg)
 
 dotenv.load_dotenv('.env')
 TOKEN = os.getenv('TOKEN')
