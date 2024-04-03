@@ -10,9 +10,11 @@ import os
 global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, playlist_urls, track_id
 global play_flag, dwnld_pl_flag
 
-old_files = os.listdir('D:/ITAN/')
+music_dir = 'D:/ITAN/'
+
+old_files = os.listdir(music_dir)
 for fil in old_files:
-    os.remove(f'D:/ITAN/{fil}')
+    os.remove(music_dir+fil)
 
 intents = discord.Intents().all()
 client = discord.Client(intents=intents)
@@ -58,15 +60,14 @@ async def play_song(ctx, url):
 
 async def start_playing(voice_channel, ctx):
     global i, play_flag, dwnld_pl_flag
+    global queue
     while True:
         if play_flag:
-            global queue
-            print(i, '\n', queue)
             try:
-                voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=f'D:/ITAN/{queue[i]}'))
+                voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=music_dir + queue[i]))
                 await ctx.send(f'**Пою: **`{queue[i][1:]}`'.replace('.webm', '').replace('_', ' '))
                 try:
-                    os.remove(f'D:/ITAN/{queue[i-1]}')
+                    os.remove(music_dir + queue[i-1])
                     queue[i-1] = ''
                 except: pass
                 i += 1
@@ -94,7 +95,7 @@ async def download(url, ctx):
         YoutubeDL(set_video_name(first_of_pl[1])).download(url)
         track_id += 1
 
-        files = os.listdir('D:/ITAN/')
+        files = os.listdir(music_dir)
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
@@ -109,7 +110,7 @@ async def download(url, ctx):
         video_title_name = f'{track_id} ' + pytube.YouTube(url).streams[0].title
         YoutubeDL(set_video_name(video_title_name)).download(url)
         track_id += 1
-        files = os.listdir('D:/ITAN/')
+        files = os.listdir(music_dir)
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
@@ -117,17 +118,13 @@ async def download(url, ctx):
                 dwnld_msg_text = (f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' '))
             else:
                 pass
-
-        if added is None:
-            dwnld_msg_text = '**Трек уже в очереди**'
-
         await ctx.send(dwnld_msg_text)
 
-    old_files = os.listdir('D:/ITAN/')
+    old_files = os.listdir(music_dir)
     for fil in old_files:
         if fil not in queue:
             try:
-                os.remove(f'D:/ITAN/{fil}')
+                os.remove(music_dir + fil)
             except:
                 pass
 
@@ -144,7 +141,7 @@ async def download_playlist():
             YoutubeDL(set_video_name(name)).download(url)
             track_id += 1
 
-            files = os.listdir('D:/ITAN/')
+            files = os.listdir(music_dir)
             for n in range(len(files)):
                 if files[n] not in queue:
                     queue.append(files[n])
@@ -165,7 +162,7 @@ async def download_playlist():
 def set_video_name(video_name):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': f'D:/ITAN/{video_name}.%(ext)s',
+        'outtmpl': f'{music_dir}{video_name}.%(ext)s',
         'restrictfilenames': True,
         'nocheckcertificate': True,
         'ignoreerrors': True,
@@ -219,9 +216,9 @@ async def clear_queue(ctx):
     i = 0
     await asyncio.sleep(1)
 
-    old_tracks = os.listdir('D:/ITAN/')
+    old_tracks = os.listdir(music_dir)
     for track in range(len(old_tracks)):
-        os.remove(f'D:/ITAN/{old_tracks[track]}')
+        os.remove(music_dir + old_tracks[track])
 
 
 @bot.command(name='очередь', help='Посмотреть что дальше')
