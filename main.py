@@ -59,8 +59,7 @@ async def play_song(ctx, url):
 
 
 async def start_playing(voice_channel, ctx):
-    global i, play_flag, dwnld_pl_flag
-    global queue
+    global i, play_flag, dwnld_pl_flag, queue
     while True:
         if play_flag:
             try:
