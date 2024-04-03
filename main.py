@@ -7,11 +7,12 @@ import pytube
 import dotenv
 import os
 
-global queue, i, play_flag, video_title_name, playlist_added_msg, first_added_of_pl, playlist_urls, dwnld_pl_flag
+global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, playlist_urls, track_id
+global play_flag, dwnld_pl_flag
 
 old_files = os.listdir('D:/ITAN/')
-for fil in range(len(old_files)):
-    os.remove(f'D:/ITAN/{old_files[fil]}')
+for fil in old_files:
+    os.remove(f'D:/ITAN/{fil}')
 
 intents = discord.Intents().all()
 client = discord.Client(intents=intents)
@@ -22,7 +23,7 @@ ffmpeg_options = {'options': '-vn'}
 
 @bot.command(name='пой', help='Воспроизвести')
 async def play_song(ctx, url):
-    global queue, play_flag, i
+    global queue, i, track_id, dwnld_pl_flag, play_flag
     if not ctx.message.author.voice:
         await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
         return
@@ -35,7 +36,8 @@ async def play_song(ctx, url):
         queue = queue
     except NameError:
         queue = []
-        i = 0
+        track_id = i = 0
+        dwnld_pl_flag = False
 
     try:
         server = ctx.message.guild
@@ -51,7 +53,7 @@ async def play_song(ctx, url):
 
     except Exception as err:
         print('>>download err', err)
-        await ctx.send("Somenthing went wrong - please try again later!")
+        await ctx.send(f"Somenthing went wrong - {err}")
 
 
 async def start_playing(voice_channel, ctx):
@@ -59,11 +61,13 @@ async def start_playing(voice_channel, ctx):
     while True:
         if play_flag:
             global queue
+            print(i, '\n', queue)
             try:
                 voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=f'D:/ITAN/{queue[i]}'))
-                await ctx.send(f'**Пою: **`{queue[i]}`'.replace('.webm', '').replace('_', ' '))
+                await ctx.send(f'**Пою: **`{queue[i][1:]}`'.replace('.webm', '').replace('_', ' '))
                 try:
                     os.remove(f'D:/ITAN/{queue[i-1]}')
+                    queue[i-1] = ''
                 except: pass
                 i += 1
             except:
@@ -81,19 +85,20 @@ async def start_playing(voice_channel, ctx):
 
 async def download(url, ctx):
     global queue, playlist_urls, first_of_pl, playlist_added_msg
-    global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag
+    global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag, track_id
 
     if '/playlist' in url:
         dwnld_pl_flag = True
         playlist_urls = Playlist(url)
-        first_of_pl = [playlist_urls[0], pytube.YouTube(playlist_urls[0]).streams[0].title]
+        first_of_pl = [playlist_urls[0], f'{track_id} ' + pytube.YouTube(playlist_urls[0]).streams[0].title]
         YoutubeDL(set_video_name(first_of_pl[1])).download(url)
+        track_id += 1
 
         files = os.listdir('D:/ITAN/')
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
-                first_added_of_pl = files[n]
+                first_added_of_pl = files[n][1:]
             else:
                 pass
         dwnld_msg_text_pl = f'**Добавлен плейлист: **`\n-{first_added_of_pl}`'.replace('.webm', '\n...').replace('_', ' ')
@@ -101,13 +106,14 @@ async def download(url, ctx):
 
     else:
         added = None
-        video_title_name = pytube.YouTube(url).streams[0].title
+        video_title_name = f'{track_id} ' + pytube.YouTube(url).streams[0].title
         YoutubeDL(set_video_name(video_title_name)).download(url)
+        track_id += 1
         files = os.listdir('D:/ITAN/')
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
-                added = files[n]
+                added = files[n][1:]
                 dwnld_msg_text = (f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' '))
             else:
                 pass
@@ -117,23 +123,32 @@ async def download(url, ctx):
 
         await ctx.send(dwnld_msg_text)
 
+    old_files = os.listdir('D:/ITAN/')
+    for fil in old_files:
+        if fil not in queue:
+            try:
+                os.remove(f'D:/ITAN/{fil}')
+            except:
+                pass
+
 
 async def download_playlist():
-    global playlist_added_msg, queue, dwnld_pl_flag, first_added_of_pl
+    global playlist_added_msg, queue, dwnld_pl_flag, first_added_of_pl, track_id
     pl_urls = []
     for url in playlist_urls:
         pl_urls.append(url)
     added = []
     for url in pl_urls[1:]:
         try:
-            name = pytube.YouTube(url).streams[0].title
+            name = f'{track_id} ' + pytube.YouTube(url).streams[0].title
             YoutubeDL(set_video_name(name)).download(url)
+            track_id += 1
 
             files = os.listdir('D:/ITAN/')
             for n in range(len(files)):
                 if files[n] not in queue:
                     queue.append(files[n])
-                    added.append(files[n])
+                    added.append(files[n][1:])
                 else:
                     pass
             if added:
@@ -142,7 +157,7 @@ async def download_playlist():
                 text = text.replace("['", '-').replace("']", '')
                 text = text.replace('_', ' ').replace('.webm', '')
                 await playlist_added_msg.edit(content=text)
-        except Exception as err:print('1 ', err)
+        except Exception as err: print('1 ', err)
 
     dwnld_pl_flag = False
 
@@ -181,10 +196,12 @@ async def pause_resume(ctx):
 async def next_track(ctx):
     global queue
     voice_client = ctx.message.guild.voice_client
-    if voice_client.is_playing():
-        await ctx.send('**да есть же**')
-        voice_client.stop()
-    else:
+    try:
+        queue[i] = queue[i]
+        if voice_client.is_playing():
+            await ctx.send('**да есть же**')
+            voice_client.stop()
+    except IndexError:
         await ctx.send('**В очереди нет треков**')
 
 
@@ -201,6 +218,7 @@ async def clear_queue(ctx):
     queue = []
     i = 0
     await asyncio.sleep(1)
+
     old_tracks = os.listdir('D:/ITAN/')
     for track in range(len(old_tracks)):
         os.remove(f'D:/ITAN/{old_tracks[track]}')
@@ -219,7 +237,7 @@ async def print_queue(ctx):
         queue_msg = '**В очереди нет треков**'
         await ctx.send(queue_msg)
 
-dotenv.load_dotenv('.env')
+dotenv.load_dotenv('C:/Users/tortm/PyProjects/ITAN_MusicianBot/.env')
 TOKEN = os.getenv('TOKEN')
 
 if __name__ == "__main__":
