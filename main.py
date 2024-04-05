@@ -1,13 +1,14 @@
 from discord.ext import commands
+from bs4 import BeautifulSoup
 from yt_dlp import YoutubeDL
 from pytube import Playlist
+import requests
 import discord
 import asyncio
-import pytube
 import dotenv
 import os
 
-global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, playlist_urls, track_id
+global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, pl_urls, track_id
 global play_flag, dwnld_pl_flag
 
 music_dir = 'D:/ITAN/'
@@ -64,7 +65,7 @@ async def start_playing(voice_channel, ctx):
         if play_flag:
             try:
                 voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=music_dir + queue[i]))
-                await ctx.send(f'**Пою: **`{queue[i][1:]}`'.replace('.webm', '').replace('_', ' '))
+                await ctx.send(f'**Пою: **`{queue[i][2:]}`'.replace('.webm', '').replace('_', ' '))
                 try:
                     os.remove(music_dir + queue[i-1])
                     queue[i-1] = ''
@@ -72,8 +73,10 @@ async def start_playing(voice_channel, ctx):
                 i += 1
             except:
                 if dwnld_pl_flag:
+                    await asyncio.sleep(1)
                     try:
-                        await download_playlist()
+                        global pl_urls
+                        await download_playlist(pl_urls)
                     except: pass
                 else: pass
 
@@ -84,37 +87,44 @@ async def start_playing(voice_channel, ctx):
 
 
 async def download(url, ctx):
-    global queue, playlist_urls, first_of_pl, playlist_added_msg
+    global queue, pl_urls, first_of_pl, playlist_added_msg
     global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag, track_id
 
     if '/playlist' in url:
         dwnld_pl_flag = True
         playlist_urls = Playlist(url)
-        first_of_pl = [playlist_urls[0], f'{track_id} ' + pytube.YouTube(playlist_urls[0]).streams[0].title]
-        YoutubeDL(set_video_name(first_of_pl[1])).download(url)
+        pl_urls = []
+        for url in playlist_urls:
+            pl_urls.append(url)
+
+        first_of_pl = [pl_urls[0], f'{track_id} ' + get_video_title(pl_urls[0])]
+        YoutubeDL(set_video_name(first_of_pl[1])).download(pl_urls[0])
         track_id += 1
 
         files = os.listdir(music_dir)
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
-                first_added_of_pl = files[n][1:]
+                first_added_of_pl = files[n][2:]
             else:
                 pass
-        dwnld_msg_text_pl = f'**Добавлен плейлист: **`\n-{first_added_of_pl}`'.replace('.webm', '\n...').replace('_', ' ')
+        dots = '.' * len(pl_urls)
+        dwnld_msg_text_pl = f'**Добавлен плейлист: **```\n-{first_added_of_pl}\n{dots}```'
+        dwnld_msg_text_pl = dwnld_msg_text_pl.replace('.webm', '').replace('_', ' ')
         playlist_added_msg = await ctx.send(dwnld_msg_text_pl)
+        await asyncio.sleep(1)
 
     else:
         added = None
-        video_title_name = f'{track_id} ' + pytube.YouTube(url).streams[0].title
+        video_title_name = f'{track_id} ' + get_video_title(url)
         YoutubeDL(set_video_name(video_title_name)).download(url)
         track_id += 1
         files = os.listdir(music_dir)
         for n in range(len(files)):
             if files[n] not in queue:
                 queue.append(files[n])
-                added = files[n][1:]
-                dwnld_msg_text = (f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' '))
+                added = files[n][2:]
+                dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' ')
             else:
                 pass
         await ctx.send(dwnld_msg_text)
@@ -128,15 +138,12 @@ async def download(url, ctx):
                 pass
 
 
-async def download_playlist():
+async def download_playlist(urls):
     global playlist_added_msg, queue, dwnld_pl_flag, first_added_of_pl, track_id
-    pl_urls = []
-    for url in playlist_urls:
-        pl_urls.append(url)
     added = []
-    for url in pl_urls[1:]:
+    for url in urls[1:]:
         try:
-            name = f'{track_id} ' + pytube.YouTube(url).streams[0].title
+            name = f'{track_id} ' + get_video_title(url)
             YoutubeDL(set_video_name(name)).download(url)
             track_id += 1
 
@@ -144,24 +151,32 @@ async def download_playlist():
             for n in range(len(files)):
                 if files[n] not in queue:
                     queue.append(files[n])
-                    added.append(files[n][1:])
+                    added.append(files[n][2:])
                 else:
                     pass
             if added:
-                text = f'**Плейлист добавлен**\n```-{first_added_of_pl}\n{added}```'
+                dots = '.' * (len(urls) - len(added) - 1)
+                text = f'**Плейлист добавлен**\n```-{first_added_of_pl}\n{added}\n{dots}```'
                 text = text.replace("', '", '\n-')
                 text = text.replace("['", '-').replace("']", '')
-                text = text.replace('_', ' ').replace('.webm', '')
+                text = text.replace('- ', '-').replace('.webm', '')
                 await playlist_added_msg.edit(content=text)
         except Exception as err: print('1 ', err)
 
     dwnld_pl_flag = False
 
 
+def get_video_title(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    title = soup.find('title').text
+    title = title.replace('- YouTube', '')
+    return title
+
 def set_video_name(video_name):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': f'{music_dir}{video_name}.%(ext)s',
+        'outtmpl': f'{music_dir}{video_name.title()}.%(ext)s',
         'restrictfilenames': True,
         'nocheckcertificate': True,
         'ignoreerrors': True,
