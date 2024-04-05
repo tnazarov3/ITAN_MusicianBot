@@ -73,11 +73,10 @@ async def start_playing(voice_channel, ctx):
                 i += 1
             except:
                 if dwnld_pl_flag:
+                    print('pl dwnld started')
                     await asyncio.sleep(1)
-                    try:
-                        global pl_urls
-                        await download_playlist(pl_urls)
-                    except: pass
+                    global pl_urls
+                    await download_playlist(pl_urls)
                 else: pass
 
             await asyncio.sleep(3)
@@ -91,12 +90,11 @@ async def download(url, ctx):
     global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag, track_id
 
     if '/playlist' in url:
-        dwnld_pl_flag = True
         playlist_urls = Playlist(url)
         pl_urls = []
         for url in playlist_urls:
             pl_urls.append(url)
-
+        print(pl_urls)
         first_of_pl = [pl_urls[0], f'{track_id} ' + get_video_title(pl_urls[0])]
         YoutubeDL(set_video_name(first_of_pl[1])).download(pl_urls[0])
         track_id += 1
@@ -112,7 +110,7 @@ async def download(url, ctx):
         dwnld_msg_text_pl = f'**Добавлен плейлист: **```\n-{first_added_of_pl}\n{dots}```'
         dwnld_msg_text_pl = dwnld_msg_text_pl.replace('.webm', '').replace('_', ' ')
         playlist_added_msg = await ctx.send(dwnld_msg_text_pl)
-        await asyncio.sleep(1)
+        dwnld_pl_flag = True
 
     else:
         added = None
@@ -140,6 +138,7 @@ async def download(url, ctx):
 
 async def download_playlist(urls):
     global playlist_added_msg, queue, dwnld_pl_flag, first_added_of_pl, track_id
+    dwnld_pl_flag = False
     added = []
     for url in urls[1:]:
         try:
@@ -162,8 +161,7 @@ async def download_playlist(urls):
                 text = text.replace('- ', '-').replace('.webm', '')
                 await playlist_added_msg.edit(content=text)
         except Exception as err: print('1 ', err)
-
-    dwnld_pl_flag = False
+    print('pl dwnlded')
 
 
 def get_video_title(url):
@@ -172,6 +170,7 @@ def get_video_title(url):
     title = soup.find('title').text
     title = title.replace('- YouTube', '')
     return title
+
 
 def set_video_name(video_name):
     ydl_opts = {
@@ -189,7 +188,7 @@ def set_video_name(video_name):
     return ydl_opts
 
 
-@bot.command(name='дауби', help='Остановать/Продолжить')
+@bot.command(name='п', help='Остановать/Продолжить')
 async def pause_resume(ctx):
     global play_flag
     voice_client = ctx.message.guild.voice_client
