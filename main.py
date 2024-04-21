@@ -23,6 +23,145 @@ client = discord.Client(intents=intents)
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 ffmpeg_options = {'options': '-vn'}
+track_id = 0
+
+
+async def start_playing(voice_channel, ctx):
+    global i, play_flag, dwnld_pl_flag, queue
+    while True:
+        if play_flag:
+            try:
+                print('i = ', i)
+                voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=queue[i]))
+                track_title = f'{queue[i]}'.split(sep='/')[-1].split(sep='.')[0]
+                track_title = track_title[2:] if track_title[0].isnumeric() else track_title
+                await ctx.send(f'**Пою: **`{track_title}`'.replace('.webm', '').replace('_', ' '))
+
+                await asyncio.sleep(1)
+                if queue[i].split(sep='/')[-2] == 'Download':
+                    if i > 0:
+                        try:
+                            os.remove(music_dir + queue[i-1])
+                            queue[i-1] = ''
+                            print('==============deleted================')
+                            print(queue)
+                        except:
+                            pass
+                    else:
+                        pass
+                i += 1
+            except:
+                if dwnld_pl_flag:
+                    print('pl dwnld started')
+                    await asyncio.sleep(1)
+                    global pl_urls
+                    await download_playlist(pl_urls)
+                else:
+                    pass
+
+            await asyncio.sleep(4)
+
+        elif not play_flag:
+            break
+
+
+async def download(url, ctx, m_dir=music_dir, track_id=track_id):
+    global queue, pl_urls, first_of_pl, playlist_added_msg
+    global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag#, track_id
+
+    if '/playlist' in url:
+        playlist_urls = Playlist(url)
+        pl_urls = []
+        for url in playlist_urls:
+            pl_urls.append(url)
+        first_of_pl = [pl_urls[0], f'{track_id} ' + get_video_title(pl_urls[0])]
+        try:
+            YoutubeDL(set_video_name(first_of_pl[1], m_dir=m_dir)).download(pl_urls[0])
+        except:
+            YoutubeDL(set_video_name(f'{track_id}_N_{track_id}',m_dir=m_dir)).download(pl_urls[0])
+        track_id += 1
+
+        files = os.listdir(m_dir)
+        for n in range(len(files)):
+            if (m_dir + files[n]) not in queue:
+                queue.append(m_dir + files[n])
+                first_added_of_pl = files[n][2:]
+            else:
+                pass
+        dots = '.' * len(pl_urls)
+        dwnld_msg_text_pl = f'**Добавлен плейлист: **```\n-{first_added_of_pl}\n{dots}```'
+        dwnld_msg_text_pl = dwnld_msg_text_pl.replace('.webm', '').replace('_', ' ')
+        playlist_added_msg = await ctx.send(dwnld_msg_text_pl)
+        dwnld_pl_flag = True
+
+    else:
+        added = None
+        video_title_name = f'{track_id} ' + get_video_title(url)
+        YoutubeDL(set_video_name(video_title_name, m_dir=m_dir)).download(url)
+        track_id += 1
+        files = os.listdir(m_dir)
+        for n in range(len(files)):
+            if (m_dir + files[n]) not in queue:
+                queue.append(m_dir + files[n])
+                added = files[n][2:]
+                dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' ')
+            else:
+                pass
+        await ctx.send(dwnld_msg_text)
+
+
+async def download_playlist(urls, m_dir=music_dir):
+    global playlist_added_msg, queue, dwnld_pl_flag, first_added_of_pl, track_id
+    dwnld_pl_flag = False
+    added = []
+    for url in urls[1:]:
+        try:
+            name = f'{track_id} ' + get_video_title(url)
+            YoutubeDL(set_video_name(name, m_dir=m_dir)).download(url)
+            track_id += 1
+
+            files = os.listdir(m_dir)
+            for n in range(len(files)):
+                if (m_dir + files[n]) not in queue:
+                    queue.append(m_dir + files[n])
+                    added.append(files[n][2:])
+                else:
+                    pass
+            if added:
+                dots = '.' * (len(urls) - len(added) - 1)
+                pl_append_text = f'**Плейлист добавлен**\n```-{first_added_of_pl}\n{added}\n{dots}```'
+                pl_append_text = pl_append_text.replace("', '", '\n-')
+                pl_append_text = pl_append_text.replace("['", '-').replace("']", '')
+                pl_append_text = pl_append_text.replace('- ', '-').replace('.webm', '')
+                await playlist_added_msg.edit(content=pl_append_text)
+        except Exception as err:
+            print('>>dwnld_playlist ', err)
+    print('pl downloaded')
+
+
+def get_video_title(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    title = soup.find('title').text
+    title = title.replace('- YouTube', '').replace('/', '!').replace('|', 'I').replace('<', '%').replace('>', '%')
+    title = title.replace(':', ';').replace('*', '^').replace('?', 'a').replace('"', '`').replace("\\", '!').replace('.', ' ')
+    return title
+
+
+def set_video_name(video_name, m_dir):
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': f'{m_dir}{video_name}.%(ext)s',
+        'restrictfilenames': True,
+        'nocheckcertificate': True,
+        'ignoreerrors': True,
+        'logtostderr': False,
+        'quiet': True,
+        'no_warnings': True,
+        'default_search': 'auto',
+        'source_address': '0.0.0.0',
+    }
+    return ydl_opts
 
 
 @bot.command(name='пой', help='Воспроизвести')
@@ -60,141 +199,6 @@ async def play_song(ctx, url):
     except Exception as err:
         print('>>download err', err)
         await ctx.send(f"Something went wrong - {err}")
-
-
-async def start_playing(voice_channel, ctx):
-    global i, play_flag, dwnld_pl_flag, queue
-    while True:
-        if play_flag:
-            try:
-                voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=queue[i]))
-                track_title = f'{queue[i]}'.split(sep='/')[-1].split(sep='.')[0]
-                track_title = track_title[2:] if track_title[0].isnumeric() else track_title
-                await ctx.send(f'**Пою: **`{track_title}`'.replace('.webm', '').replace('_', ' '))
-
-                await asyncio.sleep(1)
-                if queue[i].split(sep='/')[-2] == 'Download':
-                    if i > 0:
-                        try:
-                            os.remove(music_dir + queue[i-1])
-                            queue[i-1] = ''
-                        except:
-                            pass
-                    else:
-                        pass
-                i += 1
-            except:
-                if dwnld_pl_flag:
-                    print('pl dwnld started')
-                    await asyncio.sleep(1)
-                    global pl_urls
-                    await download_playlist(pl_urls)
-                else:
-                    pass
-
-            await asyncio.sleep(4)
-
-        elif not play_flag:
-            break
-
-
-async def download(url, ctx):
-    global queue, pl_urls, first_of_pl, playlist_added_msg
-    global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag, track_id
-
-    if '/playlist' in url:
-        playlist_urls = Playlist(url)
-        pl_urls = []
-        for url in playlist_urls:
-            pl_urls.append(url)
-        first_of_pl = [pl_urls[0], f'{track_id} ' + get_video_title(pl_urls[0])]
-        try:
-            YoutubeDL(set_video_name(first_of_pl[1])).download(pl_urls[0])
-        except:
-            YoutubeDL(set_video_name(f'{track_id}_N_{track_id}')).download(pl_urls[0])
-        track_id += 1
-
-        files = os.listdir(music_dir)
-        for n in range(len(files)):
-            if (music_dir + files[n]) not in queue:
-                queue.append(music_dir + files[n])
-                first_added_of_pl = files[n][2:]
-            else:
-                pass
-        dots = '.' * len(pl_urls)
-        dwnld_msg_text_pl = f'**Добавлен плейлист: **```\n-{first_added_of_pl}\n{dots}```'
-        dwnld_msg_text_pl = dwnld_msg_text_pl.replace('.webm', '').replace('_', ' ')
-        playlist_added_msg = await ctx.send(dwnld_msg_text_pl)
-        dwnld_pl_flag = True
-
-    else:
-        added = None
-        video_title_name = f'{track_id} ' + get_video_title(url)
-        YoutubeDL(set_video_name(video_title_name)).download(url)
-        track_id += 1
-        files = os.listdir(music_dir)
-        for n in range(len(files)):
-            if (music_dir + files[n]) not in queue:
-                queue.append(music_dir + files[n])
-                added = files[n][2:]
-                dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' ')
-            else:
-                pass
-        await ctx.send(dwnld_msg_text)
-
-
-async def download_playlist(urls):
-    global playlist_added_msg, queue, dwnld_pl_flag, first_added_of_pl, track_id
-    dwnld_pl_flag = False
-    added = []
-    for url in urls[1:]:
-        try:
-            name = f'{track_id} ' + get_video_title(url)
-            YoutubeDL(set_video_name(name)).download(url)
-            track_id += 1
-
-            files = os.listdir(music_dir)
-            for n in range(len(files)):
-                if (music_dir + files[n]) not in queue:
-                    queue.append(music_dir + files[n])
-                    added.append(files[n][2:])
-                else:
-                    pass
-            if added:
-                dots = '.' * (len(urls) - len(added) - 1)
-                pl_append_text = f'**Плейлист добавлен**\n```-{first_added_of_pl}\n{added}\n{dots}```'
-                pl_append_text = pl_append_text.replace("', '", '\n-')
-                pl_append_text = pl_append_text.replace("['", '-').replace("']", '')
-                pl_append_text = pl_append_text.replace('- ', '-').replace('.webm', '')
-                await playlist_added_msg.edit(content=pl_append_text)
-        except Exception as err:
-            print('>>dwnld_playlist ', err)
-    print('pl downloaded')
-
-
-def get_video_title(url):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    title = soup.find('title').text
-    title = title.replace('- YouTube', '').replace('/', '!').replace('|', 'I').replace('<', '%').replace('>', '%')
-    title = title.replace(':', ';').replace('*', '^').replace('?', 'a').replace('"', '`').replace("\\", '!').replace('.', ' ')
-    return title
-
-
-def set_video_name(video_name):
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': f'{music_dir}{video_name}.%(ext)s',
-        'restrictfilenames': True,
-        'nocheckcertificate': True,
-        'ignoreerrors': True,
-        'logtostderr': False,
-        'quiet': True,
-        'no_warnings': True,
-        'default_search': 'auto',
-        'source_address': '0.0.0.0',
-    }
-    return ydl_opts
 
 
 @bot.command(name='п', help='Остановать/Продолжить')
@@ -260,10 +264,12 @@ async def print_queue(ctx):
         await ctx.send(queue_msg)
 
 
-@bot.command(name='+вайб', help='+вайб')
-async def play_vibe(ctx):
+@bot.command(name='вайб', help='+вайб')
+async def play_vibe(ctx, msg='', misc_msg=''):
+
     import random
     global queue, i, track_id, dwnld_pl_flag, play_flag
+    global vibe_list, vibe_user
 
     if not ctx.message.author.voice:
         await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
@@ -275,15 +281,8 @@ async def play_vibe(ctx):
     except Exception as err:
         print(err)
 
-    vibe_list = os.listdir(vibe_dir)
-    voice_client = ctx.message.guild.voice_client
     try:
-        if queue[-1].split('/')[-1] not in vibe_list:
-            queue[i:] = []
-            try:
-                voice_client.stop()
-            except:
-                pass
+        queue
     except NameError:
         queue = []
         track_id = i = 0
@@ -291,36 +290,118 @@ async def play_vibe(ctx):
     except Exception as err:
         print('>>+vibe not name err ', err)
 
-    random.shuffle(vibe_list)
-    dots = '.' * len(vibe_list)
-    vibe_msg_text = f'**Добавлен +вайб: **```\n{dots}```'
-    vibe_added_msg = await ctx.send(vibe_msg_text)
+    voice_client = ctx.message.guild.voice_client
+    users = {'d1ezelll': 'И', 'dvorovoygnom': 'Т', '_zugy_': 'А', 'legendaq': 'Н'}
+    vibe_user = users[f'{ctx.message.author}']
 
-    added = []
-    for vibe in vibe_list:
-        if vibe not in queue:
-            queue.append(vibe_dir + vibe)
-            added.append(vibe)
+    if msg in ['И', 'Т', 'А', 'Н'] or msg == misc_msg == '':
+        if msg == misc_msg == '':
+            vibe_user = users[f'{ctx.message.author}']
+            try:
+                queue = []
+                i = 0
+                voice_client.stop()
+            except:
+                pass
+            play_flag = True
         else:
-            pass
+            vibe_user = msg
 
-        if added:
-            dots = '.' * (len(vibe_list) - len(added))
-            pl_append_text = f'**Плейлист добавлен**\n```{added}\n{dots}```'
-            pl_append_text = pl_append_text.replace("', '", '\n-')
-            pl_append_text = pl_append_text.replace("['", '-').replace("']", '')
-            pl_append_text = pl_append_text.replace('- ', '-').replace('.mp3', '')
-            await vibe_added_msg.edit(content=pl_append_text)
+        vibe_list = os.listdir(f'{vibe_dir}{vibe_user}')
+        if vibe_list:
+            if misc_msg == '--стоп':
+                queue[i:] = []
+                try: voice_client.stop()
+                except: pass
 
-    old_files = os.listdir(music_dir)
-    for fil in old_files:
-        os.remove(music_dir + fil)
+            random.shuffle(vibe_list)
+            dots = '.' * len(vibe_list)
+            vibe_msg_text = f'**Добавлен +вайб: **```\n{dots}```'
+            vibe_added_msg = await ctx.send(vibe_msg_text)
 
-    play_flag = True
-    try:
-        await start_playing(voice_client, ctx)
-    except Exception as err:
-        print('>>play err', err)
+            added = []
+            for vibe in vibe_list:
+                if vibe not in queue:
+                    queue.append(vibe_dir + vibe_user + '/' + vibe)
+                    added.append(vibe)
+                else:
+                    pass
+
+                if added:
+                    dots = '.' * (len(vibe_list) - len(added))
+                    pl_append_text = f'**Добавлен +вайб:**\n```{added}\n{dots}```'
+                    pl_append_text = pl_append_text.replace("', '", '\n-')
+                    pl_append_text = pl_append_text.replace("['", '-').replace("']", '')
+                    pl_append_text = pl_append_text.replace('- ', '-').replace('.mp3', '')
+                    await vibe_added_msg.edit(content=pl_append_text)
+
+            play_flag = True
+            try:
+                await start_playing(voice_client, ctx)
+            except Exception as err:
+                print('>>play err', err)
+
+        elif not vibe_list:
+            await ctx.send('**В этом плейлисте нет треков**')
+
+    elif msg == '+' and 'http' in misc_msg:
+        vibe_list = os.listdir(f'{vibe_dir}{vibe_user}/')
+        nn = []
+        for n in vibe_list:
+            nn.append(int(n[0:1].strip()))
+        try:
+            _id = max(nn) + 1
+        except:
+            _id = 0
+
+        try:
+            await download(misc_msg, ctx, m_dir=f'{vibe_dir}{vibe_user}/', track_id=_id)
+        except Exception as err:
+            print('vibe dwnld err==', err)
+
+    elif msg == '?':
+        global vibe_user_list
+        vibe_user_list = os.listdir(vibe_dir + vibe_user + '/')
+        vibe_user_list = vibe_user_list.replace("', '", '\n-').replace('.mp3', '')
+        vibe_user_list = vibe_user_list.replace("['", '-').replace("']", '')
+        vibe_user_list = vibe_user_list.replace('_', ' ').replace('.webm', '')
+
+        if vibe_user_list == '[]':
+            vibe_user_list = 'В вашем плейлисте нет треков'
+
+        await ctx.send('```'+vibe_user_list+'```')
+
+    elif msg == '-' and misc_msg.isnumeric():
+        vibe_user_list = os.listdir(f'{vibe_dir}{vibe_user}/')
+        try:
+            misc_music_deleted = vibe_user_list[int(misc_msg)]
+            os.remove(f'{vibe_dir}{vibe_user}/{vibe_user_list[int(misc_msg)]}')
+            await ctx.send(f'`Удалено {misc_music_deleted}`')
+        except IndexError:
+            await ctx.send(f'Трек с номером `{misc_msg}` не найден\n'
+                           'напишите `!вайб ?` что бы посмотреть какие треки у вас в плейлисте')
+        except PermissionError:
+            await ctx.send('```Остановите или переключите трек и попробуйте ещё раз```')
+        except Exception as err: print(err)
+
+
+@bot.command(name='хелп')
+async def print_help(ctx):
+    await ctx.send('''
+`!пой {url}` **- воспроизвести/добавить в очередь**
+`!другую` **- некст**
+`!яколян` **- стоп воспроизведения и очистка очереди**
+`!очередь` **- очередь**
+`!п` **- пауза/продолжить**
+__________________________________________________________________________________
+__________________________________________________________________________________
+
+`!вайб` **- воспроизвести ваш перемешанный плейлист**
+`!вайб [И Т А Н] (--стоп)` **- добавить в очередь чужой плейлист*** *(`--` - сейчас)*
+`!вайб + {url}` **- скачать и добавить трек в свой плейлист**
+`!вайб ?` **- посмотреть треки в своём плейлисте**
+`!вайб - {номер}` **- удалить трек под этим номером** *(`!вайб ?`)*
+''')
 
 
 dotenv.load_dotenv('C:/Users/tortm/PyProjects/ITAN_MusicianBot/.env')
