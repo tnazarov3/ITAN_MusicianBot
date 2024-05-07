@@ -7,6 +7,7 @@ import discord
 import asyncio
 import dotenv
 import os
+#import nacl
 
 global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, pl_urls, track_id
 global play_flag, dwnld_pl_flag
@@ -38,15 +39,15 @@ async def start_playing(voice_channel, ctx):
                 await ctx.send(f'**Пою: **`{track_title}`'.replace('.webm', '').replace('_', ' '))
 
                 await asyncio.sleep(1)
-                if queue[i].split(sep='/')[-2] == 'Download':
+                if queue[i-1].split(sep='/')[-2] == 'Download':
                     if i > 0:
                         try:
-                            os.remove(music_dir + queue[i-1])
+                            os.remove(queue[i-1])
                             queue[i-1] = ''
                             print('==============deleted================')
                             print(queue)
-                        except:
-                            pass
+                        except Exception as err:
+                            print('dlt', err)
                     else:
                         pass
                 i += 1
@@ -65,21 +66,20 @@ async def start_playing(voice_channel, ctx):
             break
 
 
-async def download(url, ctx, m_dir=music_dir, track_id=track_id):
+async def download(url, ctx, tr_id, m_dir=music_dir):
     global queue, pl_urls, first_of_pl, playlist_added_msg
-    global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag#, track_id
+    global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag
 
     if '/playlist' in url:
         playlist_urls = Playlist(url)
         pl_urls = []
         for url in playlist_urls:
             pl_urls.append(url)
-        first_of_pl = [pl_urls[0], f'{track_id} ' + get_video_title(pl_urls[0])]
+        first_of_pl = [pl_urls[0], f'{tr_id} ' + get_video_title(pl_urls[0])]
         try:
             YoutubeDL(set_video_name(first_of_pl[1], m_dir=m_dir)).download(pl_urls[0])
         except:
-            YoutubeDL(set_video_name(f'{track_id}_N_{track_id}',m_dir=m_dir)).download(pl_urls[0])
-        track_id += 1
+            YoutubeDL(set_video_name(f'{tr_id}_N_{tr_id}',m_dir=m_dir)).download(pl_urls[0])
 
         files = os.listdir(m_dir)
         for n in range(len(files)):
@@ -96,9 +96,8 @@ async def download(url, ctx, m_dir=music_dir, track_id=track_id):
 
     else:
         added = None
-        video_title_name = f'{track_id} ' + get_video_title(url)
+        video_title_name = f'{tr_id} ' + get_video_title(url)
         YoutubeDL(set_video_name(video_title_name, m_dir=m_dir)).download(url)
-        track_id += 1
         files = os.listdir(m_dir)
         for n in range(len(files)):
             if (m_dir + files[n]) not in queue:
@@ -189,7 +188,8 @@ async def play_song(ctx, url):
         voice_channel = server.voice_client
 
         async with ctx.typing():
-            await download(url, ctx)
+            await download(url, ctx, tr_id=track_id)
+            track_id += 1
         play_flag = True
         try:
             await start_playing(voice_channel, ctx)
@@ -301,9 +301,13 @@ async def play_vibe(ctx, msg='', misc_msg=''):
                 queue = []
                 i = 0
                 voice_client.stop()
-            except:
-                pass
+            except Exception as err:
+                print(err)
             play_flag = True
+            await asyncio.sleep(0.05)
+            old_files = os.listdir(music_dir)
+            for fil in old_files:
+                os.remove(music_dir + fil)
         else:
             vibe_user = msg
 
@@ -355,13 +359,13 @@ async def play_vibe(ctx, msg='', misc_msg=''):
             _id = 0
 
         try:
-            await download(misc_msg, ctx, m_dir=f'{vibe_dir}{vibe_user}/', track_id=_id)
+            await download(misc_msg, ctx, m_dir=f'{vibe_dir}{vibe_user}/', tr_id=_id)
         except Exception as err:
             print('vibe dwnld err==', err)
 
     elif msg == '?':
         global vibe_user_list
-        vibe_user_list = os.listdir(vibe_dir + vibe_user + '/')
+        vibe_user_list = str(os.listdir(vibe_dir + vibe_user + '/'))
         vibe_user_list = vibe_user_list.replace("', '", '\n-').replace('.mp3', '')
         vibe_user_list = vibe_user_list.replace("['", '-').replace("']", '')
         vibe_user_list = vibe_user_list.replace('_', ' ').replace('.webm', '')
@@ -403,8 +407,7 @@ ________________________________________________________________________________
 `!вайб - {номер}` **- удалить трек под этим номером** *(`!вайб ?`)*
 ''')
 
-
-dotenv.load_dotenv('C:/Users/tortm/PyProjects/ITAN_MusicianBot/.env')
+dotenv.load_dotenv('D:/Users/tortm/PyProjects/ITAN_MusicianBot/.env')
 TOKEN = os.getenv('TOKEN')
 
 if __name__ == "__main__":
