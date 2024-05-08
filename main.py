@@ -7,7 +7,6 @@ import discord
 import asyncio
 import dotenv
 import os
-#import nacl
 
 global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, pl_urls, track_id
 global play_flag, dwnld_pl_flag
@@ -26,7 +25,6 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 ffmpeg_options = {'options': '-vn'}
 track_id = 0
 
-
 async def start_playing(voice_channel, ctx):
     global i, play_flag, dwnld_pl_flag, queue
     while True:
@@ -44,10 +42,8 @@ async def start_playing(voice_channel, ctx):
                         try:
                             os.remove(queue[i-1])
                             queue[i-1] = ''
-                            print('==============deleted================')
-                            print(queue)
                         except Exception as err:
-                            print('dlt', err)
+                            print('>>dlt_err ', err)
                     else:
                         pass
                 i += 1
@@ -134,7 +130,7 @@ async def download_playlist(urls, m_dir=music_dir):
                 pl_append_text = pl_append_text.replace('- ', '-').replace('.webm', '')
                 await playlist_added_msg.edit(content=pl_append_text)
         except Exception as err:
-            print('>>dwnld_playlist ', err)
+            print('>>dwnld_playlist_err ', err)
     print('pl downloaded')
 
 
@@ -174,7 +170,7 @@ async def play_song(ctx, url):
     try:
         await channel.connect()
     except Exception as err:
-        print(err)
+        print('>>connect_err', err)
 
     try:
         queue = queue
@@ -194,10 +190,10 @@ async def play_song(ctx, url):
         try:
             await start_playing(voice_channel, ctx)
         except Exception as err:
-            print('>>play err', err)
+            print('>>play err ', err)
 
     except Exception as err:
-        print('>>download err', err)
+        print('>>download err ', err)
         await ctx.send(f"Something went wrong - {err}")
 
 
@@ -279,7 +275,7 @@ async def play_vibe(ctx, msg='', misc_msg=''):
     try:
         await channel.connect()
     except Exception as err:
-        print(err)
+        print('>>connectV_err ', err)
 
     try:
         queue
@@ -302,7 +298,7 @@ async def play_vibe(ctx, msg='', misc_msg=''):
                 i = 0
                 voice_client.stop()
             except Exception as err:
-                print(err)
+                print('>>force_vibe_err', err)
             play_flag = True
             await asyncio.sleep(0.05)
             old_files = os.listdir(music_dir)
@@ -343,7 +339,7 @@ async def play_vibe(ctx, msg='', misc_msg=''):
             try:
                 await start_playing(voice_client, ctx)
             except Exception as err:
-                print('>>play err', err)
+                print('>>playV err ', err)
 
         elif not vibe_list:
             await ctx.send('**В этом плейлисте нет треков**')
@@ -361,19 +357,20 @@ async def play_vibe(ctx, msg='', misc_msg=''):
         try:
             await download(misc_msg, ctx, m_dir=f'{vibe_dir}{vibe_user}/', tr_id=_id)
         except Exception as err:
-            print('vibe dwnld err==', err)
+            print('>>vibe dwnld err ', err)
 
     elif msg == '?':
         global vibe_user_list
         vibe_user_list = str(os.listdir(vibe_dir + vibe_user + '/'))
-        vibe_user_list = vibe_user_list.replace("', '", '\n-').replace('.mp3', '')
-        vibe_user_list = vibe_user_list.replace("['", '-').replace("']", '')
-        vibe_user_list = vibe_user_list.replace('_', ' ').replace('.webm', '')
 
         if vibe_user_list == '[]':
             vibe_user_list = 'В вашем плейлисте нет треков'
 
-        await ctx.send('```'+vibe_user_list+'```')
+        vibe_user_list = vibe_user_list.replace("', '", '\n-')
+        vibe_user_list = vibe_user_list.replace("['", '-').replace("']", '')
+        vibe_user_list = vibe_user_list.replace('_', ' ')
+
+        await ctx.send(f'```{vibe_user_list}```')
 
     elif msg == '-' and misc_msg.isnumeric():
         vibe_user_list = os.listdir(f'{vibe_dir}{vibe_user}/')
@@ -386,7 +383,8 @@ async def play_vibe(ctx, msg='', misc_msg=''):
                            'напишите `!вайб ?` что бы посмотреть какие треки у вас в плейлисте')
         except PermissionError:
             await ctx.send('```Остановите или переключите трек и попробуйте ещё раз```')
-        except Exception as err: print(err)
+        except Exception as err:
+            print('>>vibe-_err', err)
 
 
 @bot.command(name='хелп')
@@ -397,11 +395,11 @@ async def print_help(ctx):
 `!яколян` **- стоп воспроизведения и очистка очереди**
 `!очередь` **- очередь**
 `!п` **- пауза/продолжить**
-__________________________________________________________________________________
-__________________________________________________________________________________
+_____________________________________________________
+_____________________________________________________
 
 `!вайб` **- воспроизвести ваш перемешанный плейлист**
-`!вайб [И Т А Н] (--стоп)` **- добавить в очередь чужой плейлист*** *(`--` - сейчас)*
+`!вайб [И Т А Н] (--стоп)` **- добавить в очередь чужой плейлист** *(`--` - остановив текущую очередь)*
 `!вайб + {url}` **- скачать и добавить трек в свой плейлист**
 `!вайб ?` **- посмотреть треки в своём плейлисте**
 `!вайб - {номер}` **- удалить трек под этим номером** *(`!вайб ?`)*
