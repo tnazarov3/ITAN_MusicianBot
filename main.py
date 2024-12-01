@@ -1,7 +1,9 @@
 from discord.ext import commands
+from yandex_music import Client
 from bs4 import BeautifulSoup
 from yt_dlp import YoutubeDL
 from pytube import Playlist
+import yandex_music
 import requests
 import discord
 import asyncio
@@ -11,6 +13,7 @@ import os
 global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, pl_urls, track_id
 global play_flag, dwnld_pl_flag
 
+client_y = Client("y0_AgAAAAAr29LjAAG8XgAAAAEalq8cAABb0aj8ydtNqpov5lW4_sDbEsiRnQ").init()
 music_dir = 'D:/ITAN/Download/'
 vibe_dir = 'D:/ITAN/вайб/'
 
@@ -66,44 +69,64 @@ async def download(url, ctx, tr_id, m_dir=music_dir):
     global queue, pl_urls, first_of_pl, playlist_added_msg
     global dwnld_msg_text, added, first_added_of_pl, dwnld_pl_flag
 
-    if '/playlist' in url:
-        playlist_urls = Playlist(url)
-        pl_urls = []
-        for url in playlist_urls:
-            pl_urls.append(url)
-        first_of_pl = [pl_urls[0], f'{tr_id} ' + get_video_title(pl_urls[0])]
-        try:
-            YoutubeDL(set_video_name(first_of_pl[1], m_dir=m_dir)).download(pl_urls[0])
-        except:
-            YoutubeDL(set_video_name(f'{tr_id}_N_{tr_id}',m_dir=m_dir)).download(pl_urls[0])
+    if 'youtu' in url:
+        if '/playlist' in url:
+            playlist_urls = Playlist(url)
+            pl_urls = []
+            for url in playlist_urls:
+                pl_urls.append(url)
+            first_of_pl = [pl_urls[0], f'{tr_id} ' + get_video_title(pl_urls[0])]
+            try:
+                YoutubeDL(set_video_name(first_of_pl[1], m_dir=m_dir)).download(pl_urls[0])
+            except:
+                YoutubeDL(set_video_name(f'{tr_id}_N_{tr_id}',m_dir=m_dir)).download(pl_urls[0])
 
-        files = os.listdir(m_dir)
-        for n in range(len(files)):
-            if (m_dir + files[n]) not in queue:
-                queue.append(m_dir + files[n])
-                first_added_of_pl = files[n][2:]
-            else:
-                pass
-        dots = '.' * len(pl_urls)
-        dwnld_msg_text_pl = f'**Добавлен плейлист: **```\n-{first_added_of_pl}\n{dots}```'
-        dwnld_msg_text_pl = dwnld_msg_text_pl.replace('.webm', '').replace('_', ' ')
-        playlist_added_msg = await ctx.send(dwnld_msg_text_pl)
-        dwnld_pl_flag = True
+            files = os.listdir(m_dir)
+            for n in range(len(files)):
+                if (m_dir + files[n]) not in queue:
+                    queue.append(m_dir + files[n])
+                    first_added_of_pl = files[n][2:]
+                else:
+                    pass
+            dots = '.' * len(pl_urls)
+            dwnld_msg_text_pl = f'**Добавлен плейлист: **```\n-{first_added_of_pl}\n{dots}```'
+            dwnld_msg_text_pl = dwnld_msg_text_pl.replace('.webm', '').replace('_', ' ')
+            playlist_added_msg = await ctx.send(dwnld_msg_text_pl)
+            dwnld_pl_flag = True
 
-    else:
-        added = None
-        video_title_name = f'{tr_id} ' + get_video_title(url)
-        YoutubeDL(set_video_name(video_title_name, m_dir=m_dir)).download(url)
-        files = os.listdir(m_dir)
-        for n in range(len(files)):
-            if (m_dir + files[n]) not in queue:
-                queue.append(m_dir + files[n])
-                added = files[n][2:]
-                dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' ')
-            else:
-                pass
-        await ctx.send(dwnld_msg_text)
+        else:
+            added = None
+            video_title_name = f'{tr_id} ' + get_video_title(url)
+            YoutubeDL(set_video_name(video_title_name, m_dir=m_dir)).download(url)
 
+            files = os.listdir(m_dir)
+            for n in range(len(files)):
+                if (m_dir + files[n]) not in queue:
+                    queue.append(m_dir + files[n])
+                    added = files[n][2:]
+                    dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' ')
+                else:
+                    pass
+            await ctx.send(dwnld_msg_text)
+
+    elif 'music.yandex' in url:
+        if 'playlist' in url:
+            await ctx.send('плейлисты я.музыки пока не поддерживаются')
+        else:
+            track_ids = url.split('?')[0].split('/')
+            track = client_y.tracks([f'{track_ids[-1]}:{track_ids[-3]}'])[0]
+            track_name = f'{track['artists'][0]['name']} - {track['title']}'.replace('/', 'I').replace('|', 'I')
+            track.download(f'{music_dir}{track_name}.mp3')
+
+            files = os.listdir(m_dir)
+            for n in range(len(files)):
+                if (m_dir + files[n]) not in queue:
+                    queue.append(m_dir + files[n])
+                    added = files[n][2:]
+                    dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.mp3', '')
+                else:
+                    pass
+            await ctx.send(dwnld_msg_text)
 
 async def download_playlist(urls, m_dir=music_dir):
     global playlist_added_msg, queue, dwnld_pl_flag, first_added_of_pl, track_id
