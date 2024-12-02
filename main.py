@@ -1,19 +1,28 @@
 from discord.ext import commands
 from yandex_music import Client
 from bs4 import BeautifulSoup
+from vkpymusic import Service
 from yt_dlp import YoutubeDL
 from pytube import Playlist
-import yandex_music
+# import yandex_music
 import requests
 import discord
 import asyncio
 import dotenv
+import math
 import os
 
 global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, pl_urls, track_id
-global play_flag, dwnld_pl_flag
+global play_flag, dwnld_pl_flag, vk_flag
+global vk_list, vk_list_cur
 
-client_y = Client("y0_AgAAAAAr29LjAAG8XgAAAAEalq8cAABb0aj8ydtNqpov5lW4_sDbEsiRnQ").init()
+dotenv.load_dotenv('D:/Users/tortm/PyProjects/ITAN_MusicianBot/.env')
+TOKEN = os.getenv('TOKEN')
+YM_TOKEN = os.getenv('YM_TOKEN')
+
+client_y = Client(YM_TOKEN).init()
+service = Service.parse_config()
+
 music_dir = 'D:/ITAN/Download/'
 vibe_dir = 'D:/ITAN/вайб/'
 
@@ -29,7 +38,7 @@ ffmpeg_options = {'options': '-vn'}
 track_id = 0
 
 async def start_playing(voice_channel, ctx):
-    global i, play_flag, dwnld_pl_flag, queue
+    global i, play_flag, dwnld_pl_flag, vk_flag, queue, vk_list_cur
     while True:
         if play_flag:
             try:
@@ -37,6 +46,7 @@ async def start_playing(voice_channel, ctx):
                 voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=queue[i]))
                 track_title = f'{queue[i]}'.split(sep='/')[-1].split(sep='.')[0]
                 track_title = track_title[2:] if track_title[0].isnumeric() else track_title
+
                 await ctx.send(f'**Пою: **`{track_title}`'.replace('.webm', '').replace('_', ' '))
 
                 await asyncio.sleep(1)
@@ -45,6 +55,11 @@ async def start_playing(voice_channel, ctx):
                         try:
                             os.remove(queue[i-1])
                             queue[i-1] = ''
+
+                            if vk_flag:
+                                vk_list_cur+=1
+                                await vk_down(ctx, vk_list[vk_list_cur])
+
                         except Exception as err:
                             print('>>dlt_err ', err)
                     else:
@@ -63,7 +78,6 @@ async def start_playing(voice_channel, ctx):
 
         elif not play_flag:
             break
-
 
 async def download(url, ctx, tr_id, m_dir=music_dir):
     global queue, pl_urls, first_of_pl, playlist_added_msg
@@ -122,7 +136,7 @@ async def download(url, ctx, tr_id, m_dir=music_dir):
             for n in range(len(files)):
                 if (m_dir + files[n]) not in queue:
                     queue.append(m_dir + files[n])
-                    added = files[n][2:]
+                    added = files[n]
                     dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.mp3', '')
                 else:
                     pass
@@ -156,7 +170,6 @@ async def download_playlist(urls, m_dir=music_dir):
             print('>>dwnld_playlist_err ', err)
     print('pl downloaded')
 
-
 def get_video_title(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -164,7 +177,6 @@ def get_video_title(url):
     title = title.replace('- YouTube', '').replace('/', '!').replace('|', 'I').replace('<', '%').replace('>', '%')
     title = title.replace(':', ';').replace('*', '^').replace('?', 'a').replace('"', '`').replace("\\", '!').replace('.', ' ')
     return title
-
 
 def set_video_name(video_name, m_dir):
     ydl_opts = {
@@ -184,7 +196,7 @@ def set_video_name(video_name, m_dir):
 
 @bot.command(name='пой', help='Воспроизвести')
 async def play_song(ctx, url):
-    global queue, i, track_id, dwnld_pl_flag, play_flag
+    global queue, i, track_id, dwnld_pl_flag, play_flag, vk_flag
     if not ctx.message.author.voice:
         await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
         return
@@ -210,6 +222,7 @@ async def play_song(ctx, url):
             await download(url, ctx, tr_id=track_id)
             track_id += 1
         play_flag = True
+        vk_flag = False
         try:
             await start_playing(voice_channel, ctx)
         except Exception as err:
@@ -249,7 +262,7 @@ async def next_track(ctx):
 
 @bot.command(name='яколян', help='Остановить и сбросить очередь')
 async def clear_queue(ctx):
-    global queue, i, play_flag
+    global queue, i, play_flag, vk_flag
     voice_client = ctx.message.guild.voice_client
     if voice_client.is_playing():
         await ctx.send('**Ну всё, надеюсь, напелся**')
@@ -257,6 +270,7 @@ async def clear_queue(ctx):
     else:
         await ctx.send("The bot is not playing anything at the moment.")
     play_flag = False
+    vk_flag = False
     queue = []
     i = 0
     await asyncio.sleep(1)
@@ -285,10 +299,11 @@ async def print_queue(ctx):
 
 @bot.command(name='вайб', help='+вайб')
 async def play_vibe(ctx, msg='', misc_msg=''):
-
     import random
-    global queue, i, track_id, dwnld_pl_flag, play_flag
+    global queue, i, track_id, dwnld_pl_flag, play_flag, vk_flag
     global vibe_list, vibe_user
+
+    vk_flag = False
 
     if not ctx.message.author.voice:
         await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
@@ -409,6 +424,105 @@ async def play_vibe(ctx, msg='', misc_msg=''):
         except Exception as err:
             print('>>vibe-_err', err)
 
+async def vk_down(ctx, song):
+    global track_id
+    service.save_music(music_dir, song, add=f'{track_id} ')
+    track_id += 1
+    files = os.listdir(music_dir)
+    for n in range(len(files)):
+        if (music_dir + files[n]) not in queue:
+            queue.append(music_dir + files[n])
+            added = files[n]
+            dwnld_msg_text = f'**Добавлен: **`{added[2:]}`'.replace('.mp3', '')
+            await ctx.send(dwnld_msg_text)
+        else:
+            pass
+
+@bot.command(name='вк', help='Воспроизвести')
+async def play_song(ctx, msg='', misc_msg=''):
+    import random
+    global queue, i, track_id, dwnld_pl_flag, play_flag, vk_list, vk_list_cur
+
+    if not ctx.message.author.voice:
+        await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
+        return
+    else:
+        channel = ctx.message.author.voice.channel
+    try:
+        await channel.connect()
+    except Exception as err:
+        print('>>connectV_err ', err)
+
+    try:
+        queue
+    except NameError:
+        queue = []
+        track_id = i = 0
+        dwnld_pl_flag = False
+    except Exception as err:
+        print('>>+vibe not name err ', err)
+
+    voice_client = ctx.message.guild.voice_client
+    vk_users = {'d1ezelll': "VK_I", 'dvorovoygnom': "VK_T", '_zugy_': "VK_A", 'legendaq': "VK_N"}
+
+    async def list_vk_songs(n_list):
+        track_vkn = 10 * n_list + 1
+        user_songs = service.get_songs_by_userid(vk_user, 10, offset=10 * n_list)
+        output = ''
+
+        for i in user_songs:
+            output += f'`{track_vkn}) {i.artist} - {i.title}`\n'
+            track_vkn += 1
+        await ctx.send(output)
+
+    if msg == 'ID' and misc_msg != '':
+        dotenv_file = dotenv.find_dotenv()
+        dotenv.load_dotenv(dotenv_file)
+        dotenv.set_key(dotenv_file, key_to_set=f"{vk_users[f"{ctx.message.author}"]}", value_to_set=f"{misc_msg}")
+    else:
+        try:
+            vk_user = int(os.getenv(vk_users[f"{ctx.message.author}"]))
+        except TypeError:
+            await ctx.send(
+                'Для работы с ВКонтакте требуется ваш ID, его можно взять здесь: *https://id.vk.com/account/#/personal*\n Напишите `!вк ID <ваш ID ВКонтакте>`')
+            return
+
+        if msg == 'лист':
+            n_of_all_tracks = service.get_count_by_user_id(vk_user)
+            if misc_msg == '' or misc_msg == '1':
+                await list_vk_songs(0)
+                await ctx.send(f'Всего у вас треков: `{n_of_all_tracks}`, страниц: `{math.ceil(n_of_all_tracks/10)}`')
+            else:
+                try:
+                    n_list = int(misc_msg)
+                    if 1 < n_list <= math.ceil(n_of_all_tracks/10):
+                        await list_vk_songs(n_list-1)
+                    else:
+                        await ctx.send('Выход за пределы')
+                except ValueError:
+                    await ctx.send('НЕЧИСЛОВОЙ ФОРМАТ!')
+
+        elif msg == 'волна':
+            global vk_list, vk_list_cur, vk_flag
+            vk_flag = True
+            vk_list_cur = 0
+            n_of_all_tracks = service.get_count_by_user_id(vk_user)
+            vk_list = service.get_songs_by_userid(vk_user, count=n_of_all_tracks)
+            random.shuffle(vk_list)
+
+            await vk_down(ctx, vk_list[vk_list_cur])
+            vk_list_cur += 1
+            await vk_down(ctx, vk_list[vk_list_cur])
+            play_flag = True
+            await start_playing(voice_client, ctx)
+
+        elif msg == 'ф' and misc_msg != '':
+            to_find = str(ctx.message.content).replace('!вк', '').replace(' ф ', '')
+            find = service.search_songs_by_text(to_find, 1)
+            play_flag = True
+            await vk_down(ctx, find[0])
+            await start_playing(voice_client, ctx)
+
 
 @bot.command(name='хелп')
 async def print_help(ctx):
@@ -428,8 +542,6 @@ _____________________________________________________
 `!вайб - {номер}` **- удалить трек под этим номером** *(`!вайб ?`)*
 ''')
 
-dotenv.load_dotenv('D:/Users/tortm/PyProjects/ITAN_MusicianBot/.env')
-TOKEN = os.getenv('TOKEN')
 
 if __name__ == "__main__":
     bot.run(TOKEN)
