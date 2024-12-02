@@ -36,6 +36,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 ffmpeg_options = {'options': '-vn'}
 track_id = 0
+vk_flag = False
 
 async def start_playing(voice_channel, ctx):
     global i, play_flag, dwnld_pl_flag, vk_flag, queue, vk_list_cur
@@ -471,7 +472,7 @@ async def play_song(ctx, msg='', misc_msg=''):
         output = ''
 
         for i in user_songs:
-            output += f'`{track_vkn}) {i.artist} - {i.title}`\n'
+            output += f'`{track_vkn}) {i.title} - {i.artist}`\n'
             track_vkn += 1
         await ctx.send(output)
 
@@ -487,8 +488,9 @@ async def play_song(ctx, msg='', misc_msg=''):
                 'Для работы с ВКонтакте требуется ваш ID, его можно взять здесь: *https://id.vk.com/account/#/personal*\n Напишите `!вк ID <ваш ID ВКонтакте>`')
             return
 
+        n_of_all_tracks = service.get_count_by_user_id(vk_user)
+
         if msg == 'лист':
-            n_of_all_tracks = service.get_count_by_user_id(vk_user)
             if misc_msg == '' or misc_msg == '1':
                 await list_vk_songs(0)
                 await ctx.send(f'Всего у вас треков: `{n_of_all_tracks}`, страниц: `{math.ceil(n_of_all_tracks/10)}`')
@@ -506,7 +508,6 @@ async def play_song(ctx, msg='', misc_msg=''):
             global vk_list, vk_list_cur, vk_flag
             vk_flag = True
             vk_list_cur = 0
-            n_of_all_tracks = service.get_count_by_user_id(vk_user)
             vk_list = service.get_songs_by_userid(vk_user, count=n_of_all_tracks)
             random.shuffle(vk_list)
 
@@ -523,23 +524,43 @@ async def play_song(ctx, msg='', misc_msg=''):
             await vk_down(ctx, find[0])
             await start_playing(voice_client, ctx)
 
+        elif msg != '':
+            try:
+                intmsg = int(msg)
+                if 0 < intmsg <= n_of_all_tracks:
+                    await vk_down(ctx, service.get_songs_by_userid(vk_user, count=1, offset=intmsg-1)[0])
+                    play_flag = True
+                    await start_playing(voice_client, ctx)
+                else:
+                    await ctx.send('Выход за пределы')
+            except ValueError:
+                await ctx.send('НЕЧИСЛОВОЙ ФОРМАТ!')
+
 
 @bot.command(name='хелп')
 async def print_help(ctx):
     await ctx.send('''
-`!пой {url}` **- воспроизвести/добавить в очередь**
+`===       Общие      ===`
 `!другую` **- некст**
 `!яколян` **- стоп воспроизведения и очистка очереди**
 `!очередь` **- очередь**
 `!п` **- пауза/продолжить**
-_____________________________________________________
-_____________________________________________________
 
+`===   YT / Я.Музыка  ===`
+`!пой {url}` **- воспроизвести/добавить в очередь**
+
+`===        VK        ===`
+`!вк {число}` **- воспроизвести трек из вышей музыки под этим {числом}** (*`!вк лист`*)
+`!вк лист {число}` **- вывести вашу музыку страницей под {номером} по 10 треков** 
+`!вк волна` **- перемешать и воспроизвести вашу музыку** 
+`!вк ф {текст}` **- найти и воспроизвести трек по {артисту и/или названию}**
+
+`===       Вайб       ===`
 `!вайб` **- воспроизвести ваш перемешанный плейлист**
-`!вайб [И Т А Н] (--стоп)` **- добавить в очередь чужой плейлист** *(`--` - остановив текущую очередь)*
+`!вайб [И Т А Н] (--стоп)` **- добавить в очередь чужой плейлист** *(`--`остановив текущую очередь)*
 `!вайб + {url}` **- скачать и добавить трек в свой плейлист**
 `!вайб ?` **- посмотреть треки в своём плейлисте**
-`!вайб - {номер}` **- удалить трек под этим номером** *(`!вайб ?`)*
+`!вайб - {число}` **- удалить трек под этим {числом}** (*`!вайб ?`*)
 ''')
 
 
