@@ -46,7 +46,7 @@ async def start_playing(voice_channel, ctx):
                 print('i = ', i)
                 voice_channel.play(discord.FFmpegPCMAudio(executable="ffmpeg.exe", source=queue[i]))
                 track_title = f'{queue[i]}'.split(sep='/')[-1].split(sep='.')[0]
-                track_title = track_title[2:] if track_title[0].isnumeric() else track_title
+                track_title = track_title[len(str(track_id))+1:] if track_title[0].isnumeric() else track_title
 
                 await ctx.send(f'**Пою: **`{track_title}`'.replace('.webm', '').replace('_', ' '))
 
@@ -57,7 +57,7 @@ async def start_playing(voice_channel, ctx):
                             os.remove(queue[i-1])
                             queue[i-1] = ''
 
-                            if vk_flag:
+                            if vk_flag and (track_id - i) <= 1:
                                 vk_list_cur+=1
                                 await vk_down(ctx, vk_list[vk_list_cur])
 
@@ -118,7 +118,7 @@ async def download(url, ctx, tr_id, m_dir=music_dir):
             for n in range(len(files)):
                 if (m_dir + files[n]) not in queue:
                     queue.append(m_dir + files[n])
-                    added = files[n][2:]
+                    added = files[n][len(str(tr_id))+1:]
                     dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.webm', '').replace('_', ' ')
                 else:
                     pass
@@ -126,18 +126,18 @@ async def download(url, ctx, tr_id, m_dir=music_dir):
 
     elif 'music.yandex' in url:
         if 'playlist' in url:
-            await ctx.send('плейлисты я.музыки пока не поддерживаются')
+            await ctx.send('!! плейлисты я.музыки пока не поддерживаются !!')
         else:
             track_ids = url.split('?')[0].split('/')
             track = client_y.tracks([f'{track_ids[-1]}:{track_ids[-3]}'])[0]
-            track_name = f'{track['artists'][0]['name']} - {track['title']}'.replace('/', 'I').replace('|', 'I')
+            track_name = f'{tr_id} {track['artists'][0]['name']} - {track['title']}'.replace('/', 'I').replace('|', 'I')
             track.download(f'{music_dir}{track_name}.mp3')
 
             files = os.listdir(m_dir)
             for n in range(len(files)):
                 if (m_dir + files[n]) not in queue:
                     queue.append(m_dir + files[n])
-                    added = files[n]
+                    added = files[n][len(str(tr_id))+1:]
                     dwnld_msg_text = f'**Добавлен: **`{added}`'.replace('.mp3', '')
                 else:
                     pass
@@ -214,6 +214,7 @@ async def play_song(ctx, url):
         queue = []
         track_id = i = 0
         dwnld_pl_flag = False
+        vk_flag = False
 
     try:
         server = ctx.message.guild
@@ -223,7 +224,6 @@ async def play_song(ctx, url):
             await download(url, ctx, tr_id=track_id)
             track_id += 1
         play_flag = True
-        vk_flag = False
         try:
             await start_playing(voice_channel, ctx)
         except Exception as err:
@@ -263,7 +263,7 @@ async def next_track(ctx):
 
 @bot.command(name='яколян', help='Остановить и сбросить очередь')
 async def clear_queue(ctx):
-    global queue, i, play_flag, vk_flag
+    global queue, i, play_flag, vk_flag, track_id
     voice_client = ctx.message.guild.voice_client
     if voice_client.is_playing():
         await ctx.send('**Ну всё, надеюсь, напелся**')
@@ -273,7 +273,7 @@ async def clear_queue(ctx):
     play_flag = False
     vk_flag = False
     queue = []
-    i = 0
+    i = track_id = 0
     await asyncio.sleep(1)
 
     old_tracks = os.listdir(music_dir)
@@ -304,8 +304,6 @@ async def play_vibe(ctx, msg='', misc_msg=''):
     global queue, i, track_id, dwnld_pl_flag, play_flag, vk_flag
     global vibe_list, vibe_user
 
-    vk_flag = False
-
     if not ctx.message.author.voice:
         await ctx.send("{} is not connected to a voice channel".format(ctx.message.author.name))
         return
@@ -330,6 +328,8 @@ async def play_vibe(ctx, msg='', misc_msg=''):
     vibe_user = users[f'{ctx.message.author}']
 
     if msg in ['И', 'Т', 'А', 'Н'] or msg == misc_msg == '':
+        global vk_flag
+        vk_flag = False
         if msg == misc_msg == '':
             vibe_user = users[f'{ctx.message.author}']
             try:
@@ -439,7 +439,7 @@ async def vk_down(ctx, song):
         else:
             pass
 
-@bot.command(name='вк', help='Воспроизвести')
+@bot.command(name='вк')
 async def play_song(ctx, msg='', misc_msg=''):
     import random
     global queue, i, track_id, dwnld_pl_flag, play_flag, vk_list, vk_list_cur
@@ -518,6 +518,7 @@ async def play_song(ctx, msg='', misc_msg=''):
             await start_playing(voice_client, ctx)
 
         elif msg == 'ф' and misc_msg != '':
+            vk_flag = False
             to_find = str(ctx.message.content).replace('!вк', '').replace(' ф ', '')
             find = service.search_songs_by_text(to_find, 1)
             play_flag = True
@@ -528,6 +529,7 @@ async def play_song(ctx, msg='', misc_msg=''):
             try:
                 intmsg = int(msg)
                 if 0 < intmsg <= n_of_all_tracks:
+                    vk_flag = False
                     await vk_down(ctx, service.get_songs_by_userid(vk_user, count=1, offset=intmsg-1)[0])
                     play_flag = True
                     await start_playing(voice_client, ctx)
