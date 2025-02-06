@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 from vkpymusic import Service
 from yt_dlp import YoutubeDL
 from pytube import Playlist
-# import yandex_music
 import requests
 import discord
 import asyncio
@@ -16,7 +15,7 @@ global queue, i, video_title_name, playlist_added_msg, first_added_of_pl, pl_url
 global play_flag, dwnld_pl_flag, vk_flag
 global vk_list, vk_list_cur
 
-dotenv.load_dotenv('D:/Users/tortm/PyProjects/ITAN_MusicianBot/.env')
+dotenv.load_dotenv('./.env')
 TOKEN = os.getenv('TOKEN')
 YM_TOKEN = os.getenv('YM_TOKEN')
 
@@ -181,16 +180,17 @@ def get_video_title(url):
 
 def set_video_name(video_name, m_dir):
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'cookiefile': './cookies.txt',
+        'format': 'bestaudio',
         'outtmpl': f'{m_dir}{video_name}.%(ext)s',
         'restrictfilenames': True,
         'nocheckcertificate': True,
         'ignoreerrors': True,
-        'logtostderr': False,
-        'quiet': True,
-        'no_warnings': True,
         'default_search': 'auto',
         'source_address': '0.0.0.0',
+        'logtostderr': True,
+        'quiet': False,
+        'no_warnings': True
     }
     return ydl_opts
 
@@ -214,7 +214,6 @@ async def play_song(ctx, url):
         queue = []
         track_id = i = 0
         dwnld_pl_flag = False
-        vk_flag = False
 
     try:
         server = ctx.message.guild
@@ -223,6 +222,8 @@ async def play_song(ctx, url):
         async with ctx.typing():
             await download(url, ctx, tr_id=track_id)
             track_id += 1
+            vk_flag = False
+
         play_flag = True
         try:
             await start_playing(voice_channel, ctx)
@@ -248,7 +249,7 @@ async def pause_resume(ctx):
         await ctx.send("`а я и не пою`")
 
 
-@bot.command(name='другую', help='Включить следущую')
+@bot.command(aliases=['другую', 'n', 'д'], help='Включить следущую')
 async def next_track(ctx):
     global queue
     voice_client = ctx.message.guild.voice_client
